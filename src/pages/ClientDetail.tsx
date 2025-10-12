@@ -432,14 +432,13 @@ const ClientDetail = () => {
                 <div className="space-y-2">
                   <Label htmlFor="invoice_document">Invoice Document (Optional)</Label>
                   <Select 
-                    value={paymentForm.invoice_document_id} 
+                    value={paymentForm.invoice_document_id || undefined} 
                     onValueChange={(value) => setPaymentForm({ ...paymentForm, invoice_document_id: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Select an invoice..." />
+                      <SelectValue placeholder="No invoice selected" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No invoice</SelectItem>
                       {documents.map((doc) => (
                         <SelectItem key={doc.id} value={doc.id}>
                           {doc.file_name}
@@ -450,6 +449,17 @@ const ClientDetail = () => {
                   <p className="text-xs text-muted-foreground">
                     Link an existing document as invoice or upload a new one in the Documents section
                   </p>
+                  {paymentForm.invoice_document_id && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPaymentForm({ ...paymentForm, invoice_document_id: "" })}
+                      className="text-xs"
+                    >
+                      Clear invoice selection
+                    </Button>
+                  )}
                 </div>
                 <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90">
                   {editingPayment ? "Update Payment" : "Add Payment"}
