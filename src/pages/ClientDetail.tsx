@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X } from "lucide-react";
+import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,7 @@ const ClientDetail = () => {
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     status: "pending",
@@ -104,6 +105,36 @@ const ClientDetail = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      let invoiceDocId = paymentForm.invoice_document_id;
+
+      // Upload invoice file if provided
+      if (invoiceFile) {
+        const fileExt = invoiceFile.name.split(".").pop();
+        const fileName = `${user.id}/${id}/${Date.now()}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("client-documents")
+          .upload(fileName, invoiceFile);
+
+        if (uploadError) throw uploadError;
+
+        const { data: docData, error: dbError } = await supabase
+          .from("documents")
+          .insert({
+            client_id: id,
+            user_id: user.id,
+            file_name: invoiceFile.name,
+            file_path: fileName,
+            file_size: invoiceFile.size,
+            file_type: invoiceFile.type,
+          })
+          .select()
+          .single();
+
+        if (dbError) throw dbError;
+        invoiceDocId = docData.id;
+      }
+
       if (editingPayment) {
         // Update existing payment
         const { error } = await supabase
@@ -114,7 +145,7 @@ const ClientDetail = () => {
             description: paymentForm.description || null,
             due_date: paymentForm.due_date || null,
             paid_date: paymentForm.status === "paid" ? new Date().toISOString().split("T")[0] : null,
-            invoice_document_id: paymentForm.invoice_document_id || null,
+            invoice_document_id: invoiceDocId || null,
           })
           .eq("id", editingPayment.id);
 
@@ -130,7 +161,7 @@ const ClientDetail = () => {
           description: paymentForm.description || null,
           due_date: paymentForm.due_date || null,
           paid_date: paymentForm.status === "paid" ? new Date().toISOString().split("T")[0] : null,
-          invoice_document_id: paymentForm.invoice_document_id || null,
+          invoice_document_id: invoiceDocId || null,
         });
 
         if (error) throw error;
@@ -139,6 +170,7 @@ const ClientDetail = () => {
 
       setPaymentDialogOpen(false);
       setEditingPayment(null);
+      setInvoiceFile(null);
       setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", invoice_document_id: "" });
       loadClientData();
     } catch (error) {
@@ -149,6 +181,7 @@ const ClientDetail = () => {
 
   const handleEditPayment = (payment: Payment) => {
     setEditingPayment(payment);
+    setInvoiceFile(null);
     setPaymentForm({
       amount: payment.amount.toString(),
       status: payment.status,
@@ -381,6 +414,7 @@ const ClientDetail = () => {
             setPaymentDialogOpen(open);
             if (!open) {
               setEditingPayment(null);
+              setInvoiceFile(null);
               setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", invoice_document_id: "" });
             }
           }}>
@@ -436,38 +470,84 @@ const ClientDetail = () => {
                     onChange={(e) => setPaymentForm({ ...paymentForm, due_date: e.target.value })}
                   />
                 </div>
+                
                 <div className="space-y-2">
-                  <Label htmlFor="invoice_document">Invoice Document (Optional)</Label>
-                  <Select 
-                    value={paymentForm.invoice_document_id || undefined} 
-                    onValueChange={(value) => setPaymentForm({ ...paymentForm, invoice_document_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="No invoice selected" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {documents.map((doc) => (
-                        <SelectItem key={doc.id} value={doc.id}>
-                          {doc.file_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Link an existing document as invoice or upload a new one in the Documents section
-                  </p>
-                  {paymentForm.invoice_document_id && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPaymentForm({ ...paymentForm, invoice_document_id: "" })}
-                      className="text-xs"
-                    >
-                      Clear invoice selection
-                    </Button>
-                  )}
+                  <Label>Invoice Attachment</Label>
+                  <div className="space-y-3">
+                    {/* Upload new invoice */}
+                    <div className="border-2 border-dashed rounded-lg p-4">
+                      <Label htmlFor="invoice_upload" className="cursor-pointer flex flex-col items-center gap-2">
+                        <Upload className="h-8 w-8 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {invoiceFile ? invoiceFile.name : "Click to upload invoice PDF"}
+                        </span>
+                        <Input
+                          id="invoice_upload"
+                          type="file"
+                          accept=".pdf,.doc,.docx"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setInvoiceFile(file);
+                              setPaymentForm({ ...paymentForm, invoice_document_id: "" });
+                            }
+                          }}
+                          className="hidden"
+                        />
+                      </Label>
+                      {invoiceFile && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setInvoiceFile(null)}
+                          className="w-full mt-2"
+                        >
+                          Clear file
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Or select existing document */}
+                    {!invoiceFile && documents.length > 0 && (
+                      <>
+                        <div className="text-center text-sm text-muted-foreground">or</div>
+                        <div className="space-y-2">
+                          <Label htmlFor="invoice_document">Select existing document</Label>
+                          <Select 
+                            value={paymentForm.invoice_document_id || undefined} 
+                            onValueChange={(value) => setPaymentForm({ ...paymentForm, invoice_document_id: value })}
+                            disabled={!!invoiceFile}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="No document selected" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {documents.map((doc) => (
+                                <SelectItem key={doc.id} value={doc.id}>
+                                  {doc.file_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
+
+                    {paymentForm.invoice_document_id && !invoiceFile && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPaymentForm({ ...paymentForm, invoice_document_id: "" })}
+                        className="text-xs w-full"
+                      >
+                        Clear selection
+                      </Button>
+                    )}
+                  </div>
                 </div>
+
                 <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90">
                   {editingPayment ? "Update Payment" : "Add Payment"}
                 </Button>
@@ -622,26 +702,28 @@ const ClientDetail = () => {
           setPreviewUrl(null);
         }
       }}>
-        <DialogContent className="max-w-4xl h-[85vh]">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>{previewDocument?.file_name}</DialogTitle>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setPreviewDocument(null);
-                  setPreviewUrl(null);
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-            <DialogDescription>
-              Preview document or open in new tab for full functionality
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 h-full overflow-hidden">
+        <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0">
+          <div className="p-6 pb-2">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <DialogTitle>{previewDocument?.file_name}</DialogTitle>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setPreviewDocument(null);
+                    setPreviewUrl(null);
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <DialogDescription>
+                Preview document or open in new tab for full functionality
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="flex-1 px-6 pb-4 overflow-hidden">
             {previewUrl && previewDocument ? (
               <object
                 data={previewUrl}
@@ -667,7 +749,7 @@ const ClientDetail = () => {
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 p-6 pt-2 border-t">
             <Button
               variant="outline"
               onClick={() => previewUrl && window.open(previewUrl, '_blank')}
