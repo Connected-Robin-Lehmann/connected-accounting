@@ -349,21 +349,22 @@ const ClientDetail = () => {
   if (!client) return <div>Client not found</div>;
 
   return (
-    <div className="space-y-6">
-      <Button variant="ghost" onClick={() => navigate("/clients")} className="gap-2">
+    <div className="space-y-4 sm:space-y-6">
+      <Button variant="ghost" onClick={() => navigate("/clients")} className="gap-2 -ml-2">
         <ArrowLeft className="h-4 w-4" />
-        Back to Clients
+        <span className="hidden sm:inline">Back to Clients</span>
+        <span className="sm:hidden">Back</span>
       </Button>
 
       <div className="space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">{client.name}</h2>
-        {client.company && <p className="text-muted-foreground">{client.company}</p>}
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">{client.name}</h2>
+        {client.company && <p className="text-muted-foreground text-sm sm:text-base">{client.company}</p>}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-2">
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <DollarSign className="h-5 w-5 text-primary" />
               Financial Summary
             </CardTitle>
@@ -371,36 +372,36 @@ const ClientDetail = () => {
           <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground">Total Paid</p>
-              <p className="text-2xl font-bold text-success">${totalPaid.toFixed(2)}</p>
+              <p className="text-xl sm:text-2xl font-bold text-success">${totalPaid.toFixed(2)}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Total Pending</p>
-              <p className="text-2xl font-bold text-warning">${totalPending.toFixed(2)}</p>
+              <p className="text-xl sm:text-2xl font-bold text-warning">${totalPending.toFixed(2)}</p>
             </div>
           </CardContent>
         </Card>
 
         <Card className="shadow-soft">
           <CardHeader>
-            <CardTitle>Contact Information</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Contact Information</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {client.email && (
-              <div>
+              <div className="break-words">
                 <p className="text-sm text-muted-foreground">Email</p>
-                <p>{client.email}</p>
+                <p className="text-sm sm:text-base">{client.email}</p>
               </div>
             )}
             {client.phone && (
               <div>
                 <p className="text-sm text-muted-foreground">Phone</p>
-                <p>{client.phone}</p>
+                <p className="text-sm sm:text-base">{client.phone}</p>
               </div>
             )}
             {client.notes && (
               <div>
                 <p className="text-sm text-muted-foreground">Notes</p>
-                <p className="text-sm">{client.notes}</p>
+                <p className="text-sm break-words">{client.notes}</p>
               </div>
             )}
           </CardContent>
@@ -408,8 +409,8 @@ const ClientDetail = () => {
       </div>
 
       <Card className="shadow-soft">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Payments</CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+          <CardTitle className="text-base sm:text-lg">Payments</CardTitle>
           <Dialog open={paymentDialogOpen} onOpenChange={(open) => {
             setPaymentDialogOpen(open);
             if (!open) {
@@ -424,7 +425,7 @@ const ClientDetail = () => {
                 Add Payment
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
               <DialogHeader>
                 <DialogTitle>{editingPayment ? "Edit Payment" : "Add Payment"}</DialogTitle>
               </DialogHeader>
@@ -563,14 +564,14 @@ const ClientDetail = () => {
               {payments.map((payment) => {
                 const invoiceDoc = getInvoiceDocument(payment.invoice_document_id);
                 return (
-                  <div key={payment.id} className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold">${Number(payment.amount).toFixed(2)}</p>
+                  <div key={payment.id} className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 p-4 border rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className="flex-1 space-y-2 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-base sm:text-lg">${Number(payment.amount).toFixed(2)}</p>
                         {getStatusBadge(payment.status)}
                       </div>
                       {payment.description && (
-                        <p className="text-sm text-muted-foreground">{payment.description}</p>
+                        <p className="text-sm text-muted-foreground break-words">{payment.description}</p>
                       )}
                       {payment.due_date && (
                         <p className="text-xs text-muted-foreground">
@@ -578,13 +579,16 @@ const ClientDetail = () => {
                         </p>
                       )}
                       {invoiceDoc && (
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Paperclip className="h-3 w-3" />
-                          <span>Invoice: {invoiceDoc.file_name}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                          <Paperclip className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">Invoice: {invoiceDoc.file_name}</span>
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => handlePreviewDocument(invoiceDoc)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePreviewDocument(invoiceDoc);
+                            }}
                             className="h-6 px-2"
                           >
                             <Eye className="h-3 w-3" />
@@ -592,20 +596,30 @@ const ClientDetail = () => {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 sm:flex-col sm:flex-shrink-0 w-full sm:w-auto">
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleEditPayment(payment)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleEditPayment(payment);
+                        }}
+                        className="flex-1 sm:flex-none"
                       >
                         <Edit className="h-4 w-4" />
+                        <span className="sm:hidden ml-2">Edit</span>
                       </Button>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => handleDeletePayment(payment.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePayment(payment.id);
+                        }}
+                        className="flex-1 sm:flex-none"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
+                        <span className="sm:hidden ml-2">Delete</span>
                       </Button>
                     </div>
                   </div>
@@ -617,8 +631,8 @@ const ClientDetail = () => {
       </Card>
 
       <Card className="shadow-soft">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Documents</CardTitle>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+          <CardTitle className="text-base sm:text-lg">Documents</CardTitle>
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-gradient-primary hover:opacity-90 gap-2">
@@ -654,38 +668,44 @@ const ClientDetail = () => {
           ) : (
             <div className="space-y-3">
               {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors">
-                  <div className="flex-1">
-                    <p className="font-medium">{doc.file_name}</p>
+                <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg hover:bg-muted/30 transition-colors">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{doc.file_name}</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {new Date(doc.created_at).toLocaleDateString()}
                       {doc.file_size && ` • ${(doc.file_size / 1024).toFixed(1)} KB`}
                     </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 sm:flex-shrink-0">
                     <Button 
                       size="sm" 
                       variant="ghost" 
                       onClick={() => handlePreviewDocument(doc)}
                       title="Preview"
+                      className="flex-1 sm:flex-none"
                     >
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-4 w-4 sm:mr-0" />
+                      <span className="sm:hidden ml-2">Preview</span>
                     </Button>
                     <Button 
                       size="sm" 
                       variant="ghost" 
                       onClick={() => handleDownload(doc)}
                       title="Download"
+                      className="flex-1 sm:flex-none"
                     >
-                      <Download className="h-4 w-4" />
+                      <Download className="h-4 w-4 sm:mr-0" />
+                      <span className="sm:hidden ml-2">Download</span>
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => handleDeleteDocument(doc)}
                       title="Delete"
+                      className="flex-1 sm:flex-none"
                     >
-                      <Trash2 className="h-4 w-4 text-destructive" />
+                      <Trash2 className="h-4 w-4 text-destructive sm:mr-0" />
+                      <span className="sm:hidden ml-2">Delete</span>
                     </Button>
                   </div>
                 </div>
@@ -703,10 +723,10 @@ const ClientDetail = () => {
         }
       }}>
         <DialogContent className="max-w-[95vw] w-full h-[95vh] flex flex-col p-0">
-          <div className="p-6 pb-2">
+          <div className="p-4 sm:p-6 pb-2">
             <DialogHeader>
-              <div className="flex items-center justify-between">
-                <DialogTitle>{previewDocument?.file_name}</DialogTitle>
+              <div className="flex items-center justify-between gap-2">
+                <DialogTitle className="text-base sm:text-lg truncate">{previewDocument?.file_name}</DialogTitle>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -714,16 +734,17 @@ const ClientDetail = () => {
                     setPreviewDocument(null);
                     setPreviewUrl(null);
                   }}
+                  className="flex-shrink-0"
                 >
                   <X className="h-4 w-4" />
                 </Button>
               </div>
-              <DialogDescription>
+              <DialogDescription className="text-xs sm:text-sm">
                 Preview document or open in new tab for full functionality
               </DialogDescription>
             </DialogHeader>
           </div>
-          <div className="flex-1 px-6 pb-4 overflow-hidden">
+          <div className="flex-1 px-4 sm:px-6 pb-4 overflow-hidden">
             {previewUrl && previewDocument ? (
               <object
                 data={previewUrl}
@@ -731,13 +752,14 @@ const ClientDetail = () => {
                 className="w-full h-full border rounded-lg"
                 title={previewDocument.file_name}
               >
-                <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
-                  <p className="text-muted-foreground text-center">
+                <div className="flex flex-col items-center justify-center h-full gap-4 p-4 sm:p-8">
+                  <p className="text-muted-foreground text-center text-sm sm:text-base">
                     Unable to display PDF in browser
                   </p>
                   <Button
                     onClick={() => window.open(previewUrl, '_blank')}
                     variant="outline"
+                    size="sm"
                   >
                     Open in New Tab
                   </Button>
@@ -745,20 +767,24 @@ const ClientDetail = () => {
               </object>
             ) : (
               <div className="flex items-center justify-center h-full">
-                <p className="text-muted-foreground">Loading preview...</p>
+                <p className="text-muted-foreground text-sm sm:text-base">Loading preview...</p>
               </div>
             )}
           </div>
-          <div className="flex justify-end gap-2 p-6 pt-2 border-t">
+          <div className="flex flex-col sm:flex-row justify-end gap-2 p-4 sm:p-6 pt-2 border-t">
             <Button
               variant="outline"
               onClick={() => previewUrl && window.open(previewUrl, '_blank')}
+              size="sm"
+              className="w-full sm:w-auto"
             >
               Open in New Tab
             </Button>
             <Button
               variant="outline"
               onClick={() => previewDocument && handleDownload(previewDocument)}
+              size="sm"
+              className="w-full sm:w-auto"
             >
               <Download className="h-4 w-4 mr-2" />
               Download
