@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Download, Trash2, DollarSign } from "lucide-react";
+import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,7 @@ interface Payment {
   due_date: string | null;
   paid_date: string | null;
   created_at: string;
+  invoice_document_id: string | null;
 }
 
 interface Document {
@@ -48,11 +49,15 @@ const ClientDetail = () => {
   const [loading, setLoading] = useState(true);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<Document | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     status: "pending",
     description: "",
     due_date: "",
+    invoice_document_id: "",
   });
   const [uploading, setUploading] = useState(false);
 
@@ -98,25 +103,77 @@ const ClientDetail = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase.from("payments").insert({
-        client_id: id,
-        user_id: user.id,
-        amount: parseFloat(paymentForm.amount),
-        status: paymentForm.status,
-        description: paymentForm.description || null,
-        due_date: paymentForm.due_date || null,
-        paid_date: paymentForm.status === "paid" ? new Date().toISOString().split("T")[0] : null,
-      });
+      if (editingPayment) {
+        // Update existing payment
+        const { error } = await supabase
+          .from("payments")
+          .update({
+            amount: parseFloat(paymentForm.amount),
+            status: paymentForm.status,
+            description: paymentForm.description || null,
+            due_date: paymentForm.due_date || null,
+            paid_date: paymentForm.status === "paid" ? new Date().toISOString().split("T")[0] : null,
+            invoice_document_id: paymentForm.invoice_document_id || null,
+          })
+          .eq("id", editingPayment.id);
+
+        if (error) throw error;
+        toast.success("Payment updated successfully");
+      } else {
+        // Create new payment
+        const { error } = await supabase.from("payments").insert({
+          client_id: id,
+          user_id: user.id,
+          amount: parseFloat(paymentForm.amount),
+          status: paymentForm.status,
+          description: paymentForm.description || null,
+          due_date: paymentForm.due_date || null,
+          paid_date: paymentForm.status === "paid" ? new Date().toISOString().split("T")[0] : null,
+          invoice_document_id: paymentForm.invoice_document_id || null,
+        });
+
+        if (error) throw error;
+        toast.success("Payment added successfully");
+      }
+
+      setPaymentDialogOpen(false);
+      setEditingPayment(null);
+      setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", invoice_document_id: "" });
+      loadClientData();
+    } catch (error) {
+      console.error("Error saving payment:", error);
+      toast.error("Failed to save payment");
+    }
+  };
+
+  const handleEditPayment = (payment: Payment) => {
+    setEditingPayment(payment);
+    setPaymentForm({
+      amount: payment.amount.toString(),
+      status: payment.status,
+      description: payment.description || "",
+      due_date: payment.due_date || "",
+      invoice_document_id: payment.invoice_document_id || "",
+    });
+    setPaymentDialogOpen(true);
+  };
+
+  const handleDeletePayment = async (paymentId: string) => {
+    if (!confirm("Are you sure you want to delete this payment?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("payments")
+        .delete()
+        .eq("id", paymentId);
 
       if (error) throw error;
 
-      toast.success("Payment added successfully");
-      setPaymentDialogOpen(false);
-      setPaymentForm({ amount: "", status: "pending", description: "", due_date: "" });
+      toast.success("Payment deleted successfully");
       loadClientData();
     } catch (error) {
-      console.error("Error adding payment:", error);
-      toast.error("Failed to add payment");
+      console.error("Error deleting payment:", error);
+      toast.error("Failed to delete payment");
     }
   };
 
@@ -182,6 +239,8 @@ const ClientDetail = () => {
   };
 
   const handleDeleteDocument = async (document: Document) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+
     try {
       const { error: storageError } = await supabase.storage
         .from("client-documents")
@@ -202,6 +261,29 @@ const ClientDetail = () => {
       console.error("Error deleting document:", error);
       toast.error("Failed to delete document");
     }
+  };
+
+  const handlePreviewDocument = async (document: Document) => {
+    try {
+      const { data } = await supabase.storage
+        .from("client-documents")
+        .createSignedUrl(document.file_path, 3600); // 1 hour expiry
+
+      if (data?.signedUrl) {
+        setPreviewUrl(data.signedUrl);
+        setPreviewDocument(document);
+      } else {
+        toast.error("Failed to generate preview URL");
+      }
+    } catch (error) {
+      console.error("Error previewing document:", error);
+      toast.error("Failed to preview document");
+    }
+  };
+
+  const getInvoiceDocument = (invoiceId: string | null) => {
+    if (!invoiceId) return null;
+    return documents.find(doc => doc.id === invoiceId);
   };
 
   const getStatusBadge = (status: string) => {
@@ -288,16 +370,22 @@ const ClientDetail = () => {
       <Card className="shadow-soft">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Payments</CardTitle>
-          <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <Dialog open={paymentDialogOpen} onOpenChange={(open) => {
+            setPaymentDialogOpen(open);
+            if (!open) {
+              setEditingPayment(null);
+              setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", invoice_document_id: "" });
+            }
+          }}>
             <DialogTrigger asChild>
               <Button size="sm" className="bg-gradient-primary hover:opacity-90 gap-2">
                 <Plus className="h-4 w-4" />
                 Add Payment
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Add Payment</DialogTitle>
+                <DialogTitle>{editingPayment ? "Edit Payment" : "Add Payment"}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleAddPayment} className="space-y-4">
                 <div className="space-y-2">
@@ -341,8 +429,30 @@ const ClientDetail = () => {
                     onChange={(e) => setPaymentForm({ ...paymentForm, due_date: e.target.value })}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invoice_document">Invoice Document (Optional)</Label>
+                  <Select 
+                    value={paymentForm.invoice_document_id} 
+                    onValueChange={(value) => setPaymentForm({ ...paymentForm, invoice_document_id: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an invoice..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">No invoice</SelectItem>
+                      {documents.map((doc) => (
+                        <SelectItem key={doc.id} value={doc.id}>
+                          {doc.file_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Link an existing document as invoice or upload a new one in the Documents section
+                  </p>
+                </div>
                 <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90">
-                  Add Payment
+                  {editingPayment ? "Update Payment" : "Add Payment"}
                 </Button>
               </form>
             </DialogContent>
@@ -353,24 +463,57 @@ const ClientDetail = () => {
             <p className="text-muted-foreground text-center py-8">No payments recorded yet</p>
           ) : (
             <div className="space-y-3">
-              {payments.map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold">${Number(payment.amount).toFixed(2)}</p>
-                      {getStatusBadge(payment.status)}
+              {payments.map((payment) => {
+                const invoiceDoc = getInvoiceDocument(payment.invoice_document_id);
+                return (
+                  <div key={payment.id} className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">${Number(payment.amount).toFixed(2)}</p>
+                        {getStatusBadge(payment.status)}
+                      </div>
+                      {payment.description && (
+                        <p className="text-sm text-muted-foreground">{payment.description}</p>
+                      )}
+                      {payment.due_date && (
+                        <p className="text-xs text-muted-foreground">
+                          Due: {new Date(payment.due_date).toLocaleDateString()}
+                        </p>
+                      )}
+                      {invoiceDoc && (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Paperclip className="h-3 w-3" />
+                          <span>Invoice: {invoiceDoc.file_name}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handlePreviewDocument(invoiceDoc)}
+                            className="h-6 px-2"
+                          >
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    {payment.description && (
-                      <p className="text-sm text-muted-foreground mt-1">{payment.description}</p>
-                    )}
-                    {payment.due_date && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Due: {new Date(payment.due_date).toLocaleDateString()}
-                      </p>
-                    )}
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEditPayment(payment)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeletePayment(payment.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -414,7 +557,7 @@ const ClientDetail = () => {
           ) : (
             <div className="space-y-3">
               {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg">
+                <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors">
                   <div className="flex-1">
                     <p className="font-medium">{doc.file_name}</p>
                     <p className="text-xs text-muted-foreground mt-1">
@@ -423,13 +566,27 @@ const ClientDetail = () => {
                     </p>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="ghost" onClick={() => handleDownload(doc)}>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => handlePreviewDocument(doc)}
+                      title="Preview"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => handleDownload(doc)}
+                      title="Download"
+                    >
                       <Download className="h-4 w-4" />
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => handleDeleteDocument(doc)}
+                      title="Delete"
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
@@ -440,6 +597,54 @@ const ClientDetail = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Document Preview Dialog */}
+      <Dialog open={!!previewDocument} onOpenChange={(open) => {
+        if (!open) {
+          setPreviewDocument(null);
+          setPreviewUrl(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl h-[85vh]">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>{previewDocument?.file_name}</DialogTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setPreviewDocument(null);
+                  setPreviewUrl(null);
+                }}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+          <div className="flex-1 h-full overflow-hidden">
+            {previewUrl && previewDocument ? (
+              <iframe
+                src={previewUrl}
+                className="w-full h-full border rounded-lg"
+                title={previewDocument.file_name}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-muted-foreground">Loading preview...</p>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => previewDocument && handleDownload(previewDocument)}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
