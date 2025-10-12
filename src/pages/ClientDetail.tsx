@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DialogDescription } from "@/components/ui/dialog";
 import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -270,7 +271,13 @@ const ClientDetail = () => {
         .createSignedUrl(document.file_path, 3600); // 1 hour expiry
 
       if (data?.signedUrl) {
-        setPreviewUrl(data.signedUrl);
+        // Construct full URL with Supabase project URL
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const fullUrl = data.signedUrl.startsWith('http') 
+          ? data.signedUrl 
+          : `${supabaseUrl}/storage/v1${data.signedUrl}`;
+        
+        setPreviewUrl(fullUrl);
         setPreviewDocument(document);
       } else {
         toast.error("Failed to generate preview URL");
@@ -630,14 +637,30 @@ const ClientDetail = () => {
                 <X className="h-4 w-4" />
               </Button>
             </div>
+            <DialogDescription>
+              Preview document or open in new tab for full functionality
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 h-full overflow-hidden">
             {previewUrl && previewDocument ? (
-              <iframe
-                src={previewUrl}
+              <object
+                data={previewUrl}
+                type="application/pdf"
                 className="w-full h-full border rounded-lg"
                 title={previewDocument.file_name}
-              />
+              >
+                <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
+                  <p className="text-muted-foreground text-center">
+                    Unable to display PDF in browser
+                  </p>
+                  <Button
+                    onClick={() => window.open(previewUrl, '_blank')}
+                    variant="outline"
+                  >
+                    Open in New Tab
+                  </Button>
+                </div>
+              </object>
             ) : (
               <div className="flex items-center justify-center h-full">
                 <p className="text-muted-foreground">Loading preview...</p>
@@ -645,6 +668,12 @@ const ClientDetail = () => {
             )}
           </div>
           <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => previewUrl && window.open(previewUrl, '_blank')}
+            >
+              Open in New Tab
+            </Button>
             <Button
               variant="outline"
               onClick={() => previewDocument && handleDownload(previewDocument)}
