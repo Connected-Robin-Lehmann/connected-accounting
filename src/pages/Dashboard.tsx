@@ -17,6 +17,7 @@ interface PaymentData {
   amount: number;
   status: string;
   paid_date: string | null;
+  due_date: string | null;
   created_at: string;
 }
 
@@ -49,7 +50,7 @@ const Dashboard = () => {
 
       const [clientsResult, paymentsResult, documentsResult] = await Promise.all([
         supabase.from("clients").select("id", { count: "exact" }).eq("user_id", user.id),
-        supabase.from("payments").select("amount, status, paid_date, created_at").eq("user_id", user.id),
+        supabase.from("payments").select("amount, status, paid_date, due_date, created_at").eq("user_id", user.id),
         supabase.from("documents").select("id", { count: "exact" }).eq("user_id", user.id),
       ]);
 
@@ -97,9 +98,9 @@ const Dashboard = () => {
       else if (payment.status === "pending") statusCount.pending += amount;
       else if (payment.status === "overdue") statusCount.overdue += amount;
 
-      // Monthly aggregation (paid payments only)
-      if (payment.status === "paid" && payment.paid_date) {
-        const monthKey = format(startOfMonth(parseISO(payment.paid_date)), "MMM yyyy");
+      // Monthly aggregation (based on due date)
+      if (payment.due_date) {
+        const monthKey = format(startOfMonth(parseISO(payment.due_date)), "MMM yyyy");
         const existing = monthlyMap.get(monthKey) || { revenue: 0, count: 0 };
         monthlyMap.set(monthKey, {
           revenue: existing.revenue + amount,
@@ -107,7 +108,7 @@ const Dashboard = () => {
         });
 
         // Timeline data
-        const dateKey = format(parseISO(payment.paid_date), "MMM dd");
+        const dateKey = format(parseISO(payment.due_date), "MMM dd");
         timelineMap.set(dateKey, (timelineMap.get(dateKey) || 0) + amount);
       }
     });
