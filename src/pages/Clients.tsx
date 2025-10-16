@@ -17,6 +17,7 @@ interface Client {
   phone: string | null;
   company: string | null;
   notes: string | null;
+  website: string | null;
 }
 
 const Clients = () => {
@@ -29,6 +30,7 @@ const Clients = () => {
     phone: "",
     company: "",
     notes: "",
+    website: "",
   });
   const navigate = useNavigate();
 
@@ -76,13 +78,14 @@ const Clients = () => {
         phone: formData.phone || null,
         company: formData.company || null,
         notes: formData.notes || null,
+        website: formData.website || null,
       });
 
       if (error) throw error;
 
       toast.success("Client added successfully");
       setOpen(false);
-      setFormData({ name: "", email: "", phone: "", company: "", notes: "" });
+      setFormData({ name: "", email: "", phone: "", company: "", notes: "", website: "" });
       loadClients();
     } catch (error) {
       console.error("Error adding client:", error);
@@ -145,6 +148,16 @@ const Clients = () => {
                   id="company"
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="website">Website</Label>
+                <Input
+                  id="website"
+                  type="url"
+                  placeholder="https://example.com"
+                  value={formData.website}
+                  onChange={(e) => setFormData({ ...formData, website: e.target.value })}
                 />
               </div>
               <div className="space-y-2">

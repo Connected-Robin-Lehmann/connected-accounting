@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X, Upload } from "lucide-react";
+import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X, Upload, Globe } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ interface Client {
   phone: string | null;
   company: string | null;
   notes: string | null;
+  website: string | null;
 }
 
 interface Payment {
@@ -59,7 +60,17 @@ const ClientDetail = () => {
     status: "pending",
     description: "",
     due_date: "",
+    paid_date: "",
     invoice_document_id: "",
+  });
+  const [editClientDialogOpen, setEditClientDialogOpen] = useState(false);
+  const [clientForm, setClientForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    company: "",
+    notes: "",
+    website: "",
   });
   const [uploading, setUploading] = useState(false);
 
@@ -144,7 +155,7 @@ const ClientDetail = () => {
             status: paymentForm.status,
             description: paymentForm.description || null,
             due_date: paymentForm.due_date || null,
-            paid_date: paymentForm.status === "paid" ? new Date().toISOString().split("T")[0] : null,
+            paid_date: paymentForm.paid_date || null,
             invoice_document_id: invoiceDocId || null,
           })
           .eq("id", editingPayment.id);
@@ -160,7 +171,7 @@ const ClientDetail = () => {
           status: paymentForm.status,
           description: paymentForm.description || null,
           due_date: paymentForm.due_date || null,
-          paid_date: paymentForm.status === "paid" ? new Date().toISOString().split("T")[0] : null,
+          paid_date: paymentForm.paid_date || null,
           invoice_document_id: invoiceDocId || null,
         });
 
@@ -171,7 +182,7 @@ const ClientDetail = () => {
       setPaymentDialogOpen(false);
       setEditingPayment(null);
       setInvoiceFile(null);
-      setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", invoice_document_id: "" });
+      setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", paid_date: "", invoice_document_id: "" });
       loadClientData();
     } catch (error) {
       console.error("Error saving payment:", error);
@@ -187,9 +198,59 @@ const ClientDetail = () => {
       status: payment.status,
       description: payment.description || "",
       due_date: payment.due_date || "",
+      paid_date: payment.paid_date || "",
       invoice_document_id: payment.invoice_document_id || "",
     });
     setPaymentDialogOpen(true);
+  };
+
+  const handleEditClient = () => {
+    if (!client) return;
+    setClientForm({
+      name: client.name,
+      email: client.email || "",
+      phone: client.phone || "",
+      company: client.company || "",
+      notes: client.notes || "",
+      website: client.website || "",
+    });
+    setEditClientDialogOpen(true);
+  };
+
+  const handleUpdateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!clientForm.name || !id) {
+      toast.error("Client name is required");
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          name: clientForm.name,
+          email: clientForm.email || null,
+          phone: clientForm.phone || null,
+          company: clientForm.company || null,
+          notes: clientForm.notes || null,
+          website: clientForm.website || null,
+        })
+        .eq("id", id)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      toast.success("Client updated successfully");
+      setEditClientDialogOpen(false);
+      loadClientData();
+    } catch (error) {
+      console.error("Error updating client:", error);
+      toast.error("Failed to update client");
+    }
   };
 
   const handleDeletePayment = async (paymentId: string) => {
@@ -382,8 +443,12 @@ const ClientDetail = () => {
         </Card>
 
         <Card className="shadow-soft">
-          <CardHeader>
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
             <CardTitle className="text-base sm:text-lg">Contact Information</CardTitle>
+            <Button size="sm" variant="outline" onClick={handleEditClient} className="gap-2">
+              <Edit className="h-4 w-4" />
+              Edit
+            </Button>
           </CardHeader>
           <CardContent className="space-y-2">
             {client.email && (
@@ -398,6 +463,15 @@ const ClientDetail = () => {
                 <p className="text-sm sm:text-base">{client.phone}</p>
               </div>
             )}
+            {client.website && (
+              <div className="break-words">
+                <p className="text-sm text-muted-foreground">Website</p>
+                <a href={client.website} target="_blank" rel="noopener noreferrer" className="text-sm sm:text-base text-primary hover:underline flex items-center gap-1">
+                  <Globe className="h-3 w-3" />
+                  {client.website}
+                </a>
+              </div>
+            )}
             {client.notes && (
               <div>
                 <p className="text-sm text-muted-foreground">Notes</p>
@@ -408,6 +482,73 @@ const ClientDetail = () => {
         </Card>
       </div>
 
+      {/* Edit Client Dialog */}
+      <Dialog open={editClientDialogOpen} onOpenChange={setEditClientDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Client Information</DialogTitle>
+            <DialogDescription>Update client contact details</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleUpdateClient} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit_name">Name *</Label>
+              <Input
+                id="edit_name"
+                value={clientForm.name}
+                onChange={(e) => setClientForm({ ...clientForm, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_email">Email</Label>
+              <Input
+                id="edit_email"
+                type="email"
+                value={clientForm.email}
+                onChange={(e) => setClientForm({ ...clientForm, email: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_phone">Phone</Label>
+              <Input
+                id="edit_phone"
+                value={clientForm.phone}
+                onChange={(e) => setClientForm({ ...clientForm, phone: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_website">Website</Label>
+              <Input
+                id="edit_website"
+                type="url"
+                placeholder="https://example.com"
+                value={clientForm.website}
+                onChange={(e) => setClientForm({ ...clientForm, website: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_company">Company</Label>
+              <Input
+                id="edit_company"
+                value={clientForm.company}
+                onChange={(e) => setClientForm({ ...clientForm, company: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_notes">Notes</Label>
+              <Textarea
+                id="edit_notes"
+                value={clientForm.notes}
+                onChange={(e) => setClientForm({ ...clientForm, notes: e.target.value })}
+              />
+            </div>
+            <Button type="submit" className="w-full bg-gradient-primary hover:opacity-90">
+              Update Client
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Card className="shadow-soft">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
           <CardTitle className="text-base sm:text-lg">Payments</CardTitle>
@@ -416,7 +557,7 @@ const ClientDetail = () => {
             if (!open) {
               setEditingPayment(null);
               setInvoiceFile(null);
-              setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", invoice_document_id: "" });
+              setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", paid_date: "", invoice_document_id: "" });
             }
           }}>
             <DialogTrigger asChild>
@@ -469,6 +610,15 @@ const ClientDetail = () => {
                     type="date"
                     value={paymentForm.due_date}
                     onChange={(e) => setPaymentForm({ ...paymentForm, due_date: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="paid_date">Paid Date</Label>
+                  <Input
+                    id="paid_date"
+                    type="date"
+                    value={paymentForm.paid_date}
+                    onChange={(e) => setPaymentForm({ ...paymentForm, paid_date: e.target.value })}
                   />
                 </div>
                 
