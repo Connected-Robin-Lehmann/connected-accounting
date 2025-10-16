@@ -94,6 +94,95 @@ export type Database = {
           },
         ]
       }
+      invoice_items: {
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string
+          id: string
+          invoice_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string | null
+          description: string
+          id?: string
+          invoice_id: string
+          quantity?: number
+          unit_price?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string
+          id?: string
+          invoice_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          client_id: string
+          created_at: string | null
+          due_date: string
+          id: string
+          invoice_number: string
+          issue_date: string
+          notes: string | null
+          status: string
+          subtotal: number
+          tax_amount: number | null
+          tax_rate: number | null
+          total: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string | null
+          due_date: string
+          id?: string
+          invoice_number: string
+          issue_date: string
+          notes?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string | null
+          due_date?: string
+          id?: string
+          invoice_number?: string
+          issue_date?: string
+          notes?: string | null
+          status?: string
+          subtotal?: number
+          tax_amount?: number | null
+          tax_rate?: number | null
+          total?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       payments: {
         Row: {
           amount: number
@@ -103,7 +192,10 @@ export type Database = {
           due_date: string | null
           id: string
           invoice_document_id: string | null
+          is_recurring: boolean | null
           paid_date: string | null
+          recurrence_end_date: string | null
+          recurrence_frequency: string | null
           status: string
           updated_at: string | null
           user_id: string
@@ -116,7 +208,10 @@ export type Database = {
           due_date?: string | null
           id?: string
           invoice_document_id?: string | null
+          is_recurring?: boolean | null
           paid_date?: string | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?: string | null
           status: string
           updated_at?: string | null
           user_id: string
@@ -129,7 +224,10 @@ export type Database = {
           due_date?: string | null
           id?: string
           invoice_document_id?: string | null
+          is_recurring?: boolean | null
           paid_date?: string | null
+          recurrence_end_date?: string | null
+          recurrence_frequency?: string | null
           status?: string
           updated_at?: string | null
           user_id?: string

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 
 interface Client {
@@ -32,6 +33,9 @@ interface Payment {
   paid_date: string | null;
   created_at: string;
   invoice_document_id: string | null;
+  is_recurring: boolean;
+  recurrence_frequency: string | null;
+  recurrence_end_date: string | null;
 }
 
 interface Document {
@@ -62,6 +66,9 @@ const ClientDetail = () => {
     due_date: "",
     paid_date: "",
     invoice_document_id: "",
+    is_recurring: false,
+    recurrence_frequency: "",
+    recurrence_end_date: "",
   });
   const [editClientDialogOpen, setEditClientDialogOpen] = useState(false);
   const [clientForm, setClientForm] = useState({
@@ -94,7 +101,14 @@ const ClientDetail = () => {
       if (clientResult.error) throw clientResult.error;
       
       setClient(clientResult.data);
-      setPayments(paymentsResult.data || []);
+      
+      // Auto-update payment status based on dates
+      const paymentsWithAutoStatus = (paymentsResult.data || []).map(payment => {
+        const autoStatus = getAutoPaymentStatus(payment.due_date, payment.paid_date);
+        return { ...payment, status: autoStatus };
+      });
+      
+      setPayments(paymentsWithAutoStatus);
       setDocuments(documentsResult.data || []);
     } catch (error) {
       console.error("Error loading client data:", error);
@@ -102,6 +116,19 @@ const ClientDetail = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getAutoPaymentStatus = (dueDate: string | null, paidDate: string | null): string => {
+    if (paidDate) return "paid";
+    if (!dueDate) return "pending";
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    
+    if (due < today) return "overdue";
+    return "pending";
   };
 
   const handleAddPayment = async (e: React.FormEvent) => {
@@ -146,17 +173,22 @@ const ClientDetail = () => {
         invoiceDocId = docData.id;
       }
 
+      const autoStatus = getAutoPaymentStatus(paymentForm.due_date, paymentForm.paid_date);
+
       if (editingPayment) {
         // Update existing payment
         const { error } = await supabase
           .from("payments")
           .update({
             amount: parseFloat(paymentForm.amount),
-            status: paymentForm.status,
+            status: autoStatus,
             description: paymentForm.description || null,
             due_date: paymentForm.due_date || null,
             paid_date: paymentForm.paid_date || null,
             invoice_document_id: invoiceDocId || null,
+            is_recurring: paymentForm.is_recurring,
+            recurrence_frequency: paymentForm.is_recurring ? paymentForm.recurrence_frequency : null,
+            recurrence_end_date: paymentForm.is_recurring ? (paymentForm.recurrence_end_date || null) : null,
           })
           .eq("id", editingPayment.id);
 
@@ -168,11 +200,14 @@ const ClientDetail = () => {
           client_id: id,
           user_id: user.id,
           amount: parseFloat(paymentForm.amount),
-          status: paymentForm.status,
+          status: autoStatus,
           description: paymentForm.description || null,
           due_date: paymentForm.due_date || null,
           paid_date: paymentForm.paid_date || null,
           invoice_document_id: invoiceDocId || null,
+          is_recurring: paymentForm.is_recurring,
+          recurrence_frequency: paymentForm.is_recurring ? paymentForm.recurrence_frequency : null,
+          recurrence_end_date: paymentForm.is_recurring ? (paymentForm.recurrence_end_date || null) : null,
         });
 
         if (error) throw error;
@@ -182,7 +217,17 @@ const ClientDetail = () => {
       setPaymentDialogOpen(false);
       setEditingPayment(null);
       setInvoiceFile(null);
-      setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", paid_date: "", invoice_document_id: "" });
+      setPaymentForm({ 
+        amount: "", 
+        status: "pending", 
+        description: "", 
+        due_date: "", 
+        paid_date: "", 
+        invoice_document_id: "",
+        is_recurring: false,
+        recurrence_frequency: "",
+        recurrence_end_date: "",
+      });
       loadClientData();
     } catch (error) {
       console.error("Error saving payment:", error);
@@ -200,6 +245,9 @@ const ClientDetail = () => {
       due_date: payment.due_date || "",
       paid_date: payment.paid_date || "",
       invoice_document_id: payment.invoice_document_id || "",
+      is_recurring: payment.is_recurring || false,
+      recurrence_frequency: payment.recurrence_frequency || "",
+      recurrence_end_date: payment.recurrence_end_date || "",
     });
     setPaymentDialogOpen(true);
   };
@@ -557,7 +605,17 @@ const ClientDetail = () => {
             if (!open) {
               setEditingPayment(null);
               setInvoiceFile(null);
-              setPaymentForm({ amount: "", status: "pending", description: "", due_date: "", paid_date: "", invoice_document_id: "" });
+              setPaymentForm({ 
+                amount: "", 
+                status: "pending", 
+                description: "", 
+                due_date: "", 
+                paid_date: "", 
+                invoice_document_id: "",
+                is_recurring: false,
+                recurrence_frequency: "",
+                recurrence_end_date: "",
+              });
             }
           }}>
             <DialogTrigger asChild>
@@ -620,6 +678,53 @@ const ClientDetail = () => {
                     value={paymentForm.paid_date}
                     onChange={(e) => setPaymentForm({ ...paymentForm, paid_date: e.target.value })}
                   />
+                </div>
+                
+                <div className="space-y-3 border-t pt-4">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="is_recurring"
+                      checked={paymentForm.is_recurring}
+                      onChange={(e) => setPaymentForm({ ...paymentForm, is_recurring: e.target.checked })}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="is_recurring" className="text-sm font-medium cursor-pointer">
+                      Recurring Payment
+                    </Label>
+                  </div>
+                  
+                  {paymentForm.is_recurring && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="recurrence_frequency">Frequency</Label>
+                        <Select 
+                          value={paymentForm.recurrence_frequency} 
+                          onValueChange={(value) => setPaymentForm({ ...paymentForm, recurrence_frequency: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select frequency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="quarterly">Quarterly</SelectItem>
+                            <SelectItem value="yearly">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="recurrence_end_date">End Date (Optional)</Label>
+                        <Input
+                          id="recurrence_end_date"
+                          type="date"
+                          value={paymentForm.recurrence_end_date}
+                          onChange={(e) => setPaymentForm({ ...paymentForm, recurrence_end_date: e.target.value })}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
                 
                 <div className="space-y-2">

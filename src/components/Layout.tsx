@@ -3,7 +3,7 @@ import { useNavigate, Link, Outlet } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Users, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, LogOut, Menu, X, FileText } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 const Layout = () => {
@@ -48,6 +48,12 @@ const Layout = () => {
         <Button variant="ghost" size="sm" className="gap-2 w-full justify-start">
           <Users className="h-4 w-4" />
           Clients
+        </Button>
+      </Link>
+      <Link to="/invoices" onClick={() => setMobileMenuOpen(false)}>
+        <Button variant="ghost" size="sm" className="gap-2 w-full justify-start">
+          <FileText className="h-4 w-4" />
+          Invoices
         </Button>
       </Link>
     </>
