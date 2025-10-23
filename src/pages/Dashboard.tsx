@@ -11,6 +11,7 @@ interface Stats {
   totalPaid: number;
   totalPending: number;
   totalDocuments: number;
+  totalExpenses: number;
 }
 
 interface PaymentData {
@@ -27,6 +28,7 @@ const Dashboard = () => {
     totalPaid: 0,
     totalPending: 0,
     totalDocuments: 0,
+    totalExpenses: 0,
   });
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<{
@@ -48,10 +50,11 @@ const Dashboard = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [clientsResult, paymentsResult, documentsResult] = await Promise.all([
+      const [clientsResult, paymentsResult, documentsResult, expensesResult] = await Promise.all([
         supabase.from("clients").select("id", { count: "exact" }).eq("user_id", user.id),
         supabase.from("payments").select("amount, status, paid_date, due_date, created_at").eq("user_id", user.id),
         supabase.from("documents").select("id", { count: "exact" }).eq("user_id", user.id),
+        supabase.from("expenses").select("amount").eq("user_id", user.id),
       ]);
 
       const payments = paymentsResult.data || [];
@@ -64,11 +67,15 @@ const Dashboard = () => {
         .filter((p) => p.status === "pending" || p.status === "overdue")
         .reduce((sum, p) => sum + Number(p.amount), 0);
 
+      const totalExpenses = (expensesResult.data || [])
+        .reduce((sum, e) => sum + Number(e.amount), 0);
+
       setStats({
         totalClients: clientsResult.count || 0,
         totalPaid,
         totalPending,
         totalDocuments: documentsResult.count || 0,
+        totalExpenses,
       });
 
       // Process chart data
@@ -136,6 +143,8 @@ const Dashboard = () => {
     setChartData({ monthly, timeline, statusDistribution });
   };
 
+  const netProfit = stats.totalPaid - stats.totalExpenses;
+
   const statCards = [
     {
       title: "Total Clients",
@@ -150,16 +159,16 @@ const Dashboard = () => {
       gradient: "bg-gradient-to-br from-success to-emerald-600",
     },
     {
-      title: "Pending Payments",
-      value: `$${stats.totalPending.toFixed(2)}`,
+      title: "Total Expenses",
+      value: `$${stats.totalExpenses.toFixed(2)}`,
       icon: TrendingUp,
-      gradient: "bg-gradient-to-br from-warning to-orange-600",
+      gradient: "bg-gradient-to-br from-destructive to-red-600",
     },
     {
-      title: "Documents",
-      value: stats.totalDocuments,
-      icon: FileText,
-      gradient: "bg-gradient-to-br from-info to-cyan-600",
+      title: "Net Profit",
+      value: `$${netProfit.toFixed(2)}`,
+      icon: DollarSign,
+      gradient: netProfit >= 0 ? "bg-gradient-to-br from-success to-emerald-700" : "bg-gradient-to-br from-destructive to-red-700",
     },
   ];
 

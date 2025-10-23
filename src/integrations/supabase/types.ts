@@ -97,6 +97,42 @@ export type Database = {
           },
         ]
       }
+      expenses: {
+        Row: {
+          amount: number
+          category: string | null
+          created_at: string | null
+          date: string
+          description: string | null
+          id: string
+          invoice_document_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          category?: string | null
+          created_at?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          invoice_document_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string | null
+          created_at?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          invoice_document_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       invoice_items: {
         Row: {
           amount: number
