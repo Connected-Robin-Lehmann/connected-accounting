@@ -55,6 +55,7 @@ export type Database = {
       }
       documents: {
         Row: {
+          category: string | null
           client_id: string
           created_at: string | null
           file_name: string
@@ -65,6 +66,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          category?: string | null
           client_id: string
           created_at?: string | null
           file_name: string
@@ -75,6 +77,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          category?: string | null
           client_id?: string
           created_at?: string | null
           file_name?: string

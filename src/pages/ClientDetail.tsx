@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DialogDescription } from "@/components/ui/dialog";
-import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X, Upload, Globe } from "lucide-react";
+import { ArrowLeft, Plus, Download, Trash2, DollarSign, Edit, Eye, Paperclip, X, Upload, Globe, Filter, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -44,6 +44,7 @@ interface Document {
   file_path: string;
   file_size: number | null;
   created_at: string;
+  category: string | null;
 }
 
 const ClientDetail = () => {
@@ -80,6 +81,9 @@ const ClientDetail = () => {
     website: "",
   });
   const [uploading, setUploading] = useState(false);
+  const [documentCategoryFilter, setDocumentCategoryFilter] = useState<string>("all");
+  const [documentSearchQuery, setDocumentSearchQuery] = useState<string>("");
+  const [uploadCategory, setUploadCategory] = useState<string>("");
 
   useEffect(() => {
     loadClientData();
@@ -346,12 +350,14 @@ const ClientDetail = () => {
         file_path: fileName,
         file_size: file.size,
         file_type: file.type,
+        category: uploadCategory || null,
       });
 
       if (dbError) throw dbError;
 
       toast.success("Document uploaded successfully");
       setUploadDialogOpen(false);
+      setUploadCategory("");
       loadClientData();
     } catch (error) {
       console.error("Error uploading file:", error);
@@ -453,6 +459,12 @@ const ClientDetail = () => {
   const totalPending = payments
     .filter((p) => p.status === "pending" || p.status === "overdue")
     .reduce((sum, p) => sum + Number(p.amount), 0);
+
+  const filteredDocuments = documents.filter((doc) => {
+    const matchesCategory = documentCategoryFilter === "all" || doc.category === documentCategoryFilter;
+    const matchesSearch = doc.file_name.toLowerCase().includes(documentSearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
 
   if (loading) return <div>Loading...</div>;
   if (!client) return <div>Client not found</div>;
@@ -901,6 +913,19 @@ const ClientDetail = () => {
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
+                  <Label htmlFor="category">Category (Optional)</Label>
+                  <Select value={uploadCategory} onValueChange={setUploadCategory}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Invoice">Invoice</SelectItem>
+                      <SelectItem value="Contract">Contract</SelectItem>
+                      <SelectItem value="Price suggestion">Price suggestion</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="file">Select File</Label>
                   <Input
                     id="file"
@@ -918,55 +943,95 @@ const ClientDetail = () => {
           </Dialog>
         </CardHeader>
         <CardContent>
-          {documents.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No documents uploaded yet</p>
-          ) : (
-            <div className="space-y-3">
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg hover:bg-muted/30 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">{doc.file_name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(doc.created_at).toLocaleDateString()}
-                      {doc.file_size && ` • ${(doc.file_size / 1024).toFixed(1)} KB`}
-                    </p>
-                  </div>
-                  <div className="flex gap-2 sm:flex-shrink-0">
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={() => handlePreviewDocument(doc)}
-                      title="Preview"
-                      className="flex-1 sm:flex-none"
-                    >
-                      <Eye className="h-4 w-4 sm:mr-0" />
-                      <span className="sm:hidden ml-2">Preview</span>
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="ghost" 
-                      onClick={() => handleDownload(doc)}
-                      title="Download"
-                      className="flex-1 sm:flex-none"
-                    >
-                      <Download className="h-4 w-4 sm:mr-0" />
-                      <span className="sm:hidden ml-2">Download</span>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleDeleteDocument(doc)}
-                      title="Delete"
-                      className="flex-1 sm:flex-none"
-                    >
-                      <Trash2 className="h-4 w-4 text-destructive sm:mr-0" />
-                      <span className="sm:hidden ml-2">Delete</span>
-                    </Button>
-                  </div>
+          <div className="space-y-4">
+            {/* Filter and Search Controls */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search documents..."
+                    value={documentSearchQuery}
+                    onChange={(e) => setDocumentSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
                 </div>
-              ))}
+              </div>
+              <div className="w-full sm:w-[200px]">
+                <Select value={documentCategoryFilter} onValueChange={setDocumentCategoryFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Filter by category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    <SelectItem value="Invoice">Invoice</SelectItem>
+                    <SelectItem value="Contract">Contract</SelectItem>
+                    <SelectItem value="Price suggestion">Price suggestion</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          )}
+
+            {/* Documents List */}
+            {filteredDocuments.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">
+                {documents.length === 0 ? "No documents uploaded yet" : "No documents match your filters"}
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {filteredDocuments.map((doc) => (
+                  <div key={doc.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border rounded-lg hover:bg-muted/30 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium truncate">{doc.file_name}</p>
+                        {doc.category && (
+                          <Badge variant="outline" className="text-xs">
+                            {doc.category}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(doc.created_at).toLocaleDateString()}
+                        {doc.file_size && ` • ${(doc.file_size / 1024).toFixed(1)} KB`}
+                      </p>
+                    </div>
+                    <div className="flex gap-2 sm:flex-shrink-0">
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => handlePreviewDocument(doc)}
+                        title="Preview"
+                        className="flex-1 sm:flex-none"
+                      >
+                        <Eye className="h-4 w-4 sm:mr-0" />
+                        <span className="sm:hidden ml-2">Preview</span>
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => handleDownload(doc)}
+                        title="Download"
+                        className="flex-1 sm:flex-none"
+                      >
+                        <Download className="h-4 w-4 sm:mr-0" />
+                        <span className="sm:hidden ml-2">Download</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDeleteDocument(doc)}
+                        title="Delete"
+                        className="flex-1 sm:flex-none"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive sm:mr-0" />
+                        <span className="sm:hidden ml-2">Delete</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 
