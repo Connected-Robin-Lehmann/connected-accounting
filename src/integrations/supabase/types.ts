@@ -56,7 +56,7 @@ export type Database = {
       documents: {
         Row: {
           category: string | null
-          client_id: string
+          client_id: string | null
           created_at: string | null
           file_name: string
           file_path: string
@@ -67,7 +67,7 @@ export type Database = {
         }
         Insert: {
           category?: string | null
-          client_id: string
+          client_id?: string | null
           created_at?: string | null
           file_name: string
           file_path: string
@@ -78,7 +78,7 @@ export type Database = {
         }
         Update: {
           category?: string | null
-          client_id?: string
+          client_id?: string | null
           created_at?: string | null
           file_name?: string
           file_path?: string

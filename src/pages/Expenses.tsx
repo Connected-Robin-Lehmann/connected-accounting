@@ -105,7 +105,7 @@ const Expenses = () => {
             file_path: fileName,
             file_size: invoiceFile.size,
             file_type: invoiceFile.type,
-            category: "Invoice",
+            category: "Expense",
           })
           .select()
           .single();
